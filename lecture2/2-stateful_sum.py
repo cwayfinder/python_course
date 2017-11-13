@@ -1,4 +1,4 @@
-def sum_(n: int, state=[]):
+def sum_(n: int, state=[0]):
     state.append(n)
     return sum(state)
 
