@@ -44,8 +44,8 @@ class Pool:
             del self.fish[cell]
 
     def turn(self):
-        for predator in [*self.fish.values()]:
-            predator.turn()
+        for fish in [*self.fish.values()]:
+            fish.turn()
 
     def move_fish(self, from_x, from_y, to_x, to_y):
         from_cell = self.format_cell(from_x, from_y)
