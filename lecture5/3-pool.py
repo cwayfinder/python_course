@@ -1,30 +1,7 @@
 import random
 import math
 import functools
-
-
-class Game:
-    def __init__(self, w, h, p, v, predator_endurance, reproduction_period, victim_lifespan, victim_generation_size):
-        self.pool = Pool(w, h)
-
-        for _ in range(v):
-            victim = Victim(victim_lifespan, reproduction_period, victim_generation_size)
-            self.add(victim)
-
-        for _ in range(p):
-            predator = Predator(predator_endurance, reproduction_period, self.pool)
-            self.add(predator)
-
-    def add(self, fish):
-        if self.pool.add(fish):
-            fish.add_event_listener('die', lambda _: self.pool.remove(fish))
-            fish.add_event_listener('move', lambda move: self.pool.move_fish(fish, *move))
-            fish.add_event_listener('reproduce', lambda children: [self.add(child) for child in children])
-
-    def turn(self):
-        for fish in self.pool.fish.copy().values():  # create a copy because the dictionary may change during iteration
-            if fish in self.pool.fish.values():
-                fish.turn()
+from abc import ABCMeta, abstractmethod
 
 
 class Cell:
@@ -83,12 +60,35 @@ class Cell:
         return self.x, self.y
 
 
-class Pool:
+class Pool(metaclass=ABCMeta):
+    @property
+    @abstractmethod
+    def fish(self):
+        pass
+
+    @abstractmethod
+    def add(self, fish):
+        pass
+
+    @abstractmethod
+    def remove(self, fish):
+        pass
+
+    @abstractmethod
+    def move_fish(self, fish, x, y):
+        pass
+
+
+class RectanglePool(Pool):
     def __init__(self, w, h):
         self.w = w
         self.h = h
 
-        self.fish = {}
+        self._fish = {}
+
+    @property
+    def fish(self):
+        return self._fish
 
     def add(self, fish):
         cell = self.random_cell()
@@ -188,6 +188,7 @@ class Fish(Observable):
         self.turns_to_next_child = self.reproduction_period
         children = [self.make_child() for _ in range(self.generation_size)]
         self.emit_event('reproduce', children)
+        print('{} born {} children'.format(self, len(children)))
 
     def make_child(self):
         pass
@@ -255,7 +256,34 @@ class Victim(Fish):
         return 'V'
 
 
-game = Game(10, 5, 1, 4, 4, 4, 5, 2)
-for _ in range(20):
+class Game:
+    def __init__(self, pool: Pool, predators_count, victims_count, predator_endurance, reproduction_period,
+                 victim_lifespan, victim_generation_size):
+        self.pool = pool
+
+        for _ in range(victims_count):
+            victim = Victim(victim_lifespan, reproduction_period, victim_generation_size)
+            self.add(victim)
+
+        for _ in range(predators_count):
+            predator = Predator(predator_endurance, reproduction_period, self.pool)
+            self.add(predator)
+
+    def add(self, fish):
+        if self.pool.add(fish):
+            fish.add_event_listener('die', lambda _: self.pool.remove(fish))
+            fish.add_event_listener('move', lambda move: self.pool.move_fish(fish, *move))
+            fish.add_event_listener('reproduce', lambda children: [self.add(child) for child in children])
+
+    def turn(self):
+        for fish in self.pool.fish.copy().values():  # create a copy because the dictionary may change during iteration
+            if fish in self.pool.fish.values():  # check if fish is still alive (it might be eaten by a predator)
+                fish.turn()
+
+
+first_pool = RectanglePool(10, 5)
+game = Game(first_pool, 1, 4, 4, 5, 10, 3)
+for i in range(20):
+    print('\nturn #{}'.format(i))
     print(game.pool)
     game.turn()
