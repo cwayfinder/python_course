@@ -1,69 +1,128 @@
 import random
 import math
 import functools
+from abc import ABCMeta, abstractmethod
 
 
-class Pool:
-    def __init__(self, w, h, p, v, n, m, k, z):
+class Cell:
+    def __init__(self, x, y):
+        self.y = y
+        self.x = x
+
+    def distance(self, other):
+        delta_x = self.x - other.x
+        delta_y = self.x - other.x
+        return math.sqrt(delta_x ** 2 + delta_y ** 2)
+
+    def closest(self, others):
+        def reducer(closest, other):
+            return other if self.distance(other) < self.distance(closest) else closest
+
+        return functools.reduce(reducer, others)
+
+    def towards(self, other, limit: int):
+        x = self.x
+        y = self.y
+
+        for _ in range(limit):
+            if x < other.x:
+                x += 1
+            if x > other.x:
+                x -= 1
+
+            if y < other.y:
+                y += 1
+            if y > other.y:
+                y -= 1
+
+        return Cell(x, y)
+
+    def towards_one_of(self, others, limit: int):
+        return self.towards(self.closest(others), limit)
+
+    def __eq__(self, other):
+        if isinstance(other, Cell):
+            return self.x == other.x and self.y == other.y
+        return NotImplemented
+
+    def __sub__(self, other):
+        if isinstance(other, Cell):
+            return Cell(self.x - other.x, self.y - other.y)
+        return NotImplemented
+
+    def __hash__(self):
+        return hash('{},{}'.format(self.x, self.y))
+
+    def __repr__(self):
+        return '{},{}'.format(self.x, self.y)
+
+    def as_tuple(self):
+        return self.x, self.y
+
+
+class Pool(metaclass=ABCMeta):
+    @property
+    @abstractmethod
+    def fish(self):
+        pass
+
+    @abstractmethod
+    def add(self, fish):
+        pass
+
+    @abstractmethod
+    def remove(self, fish):
+        pass
+
+    @abstractmethod
+    def move_fish(self, fish, x, y):
+        pass
+
+
+class RectanglePool(Pool):
+    def __init__(self, w, h):
         self.w = w
         self.h = h
-        self.predator_endurance = n
-        self.reproduction_period = m
-        self.victim_lifespan = k
-        self.victim_generation_size = z
 
-        self.fish = {}
+        self._fish = {}
 
-        for i in range(v):
-            self.add_victim()
+    @property
+    def fish(self):
+        return self._fish
 
-        for i in range(p):
-            self.add_predator()
+    def add(self, fish):
+        cell = self.random_cell()
+        if self.cell_is_free(cell):
+            self.fish[cell] = fish
+            return True
+        return False
 
-    def add_victim(self):
+    def random_cell(self):
         x = random.randrange(self.w)
         y = random.randrange(self.h)
-        if self.cell_is_free(x, y):
-            victim = Victim(x, y, self)
-            self.fish[self.format_cell(x, y)] = victim
+        return Cell(x, y)
 
-    def add_predator(self):
-        x = random.randrange(self.w)
-        y = random.randrange(self.h)
-        if self.cell_is_free(x, y):
-            predator = Predator(x, y, self)
-            self.fish[self.format_cell(x, y)] = predator
-
-    def cell_is_free(self, x, y):
-        cell = self.format_cell(x, y)
+    def cell_is_free(self, cell):
         return cell not in self.fish
 
-    def remove(self, x, y):
-        cell = self.format_cell(x, y)
-        if cell in self.fish:
-            del self.fish[cell]
+    def cell_in_bounds(self, cell):
+        return 0 <= cell.x < self.w and 0 <= cell.y < self.h
 
-    def turn(self):
-        for fish in [*self.fish.values()]:
-            fish.turn()
+    def remove(self, fish):
+        cell = list(self.fish.keys())[list(self.fish.values()).index(fish)]
+        self.fish.pop(cell)
 
-    def move_fish(self, from_x, from_y, to_x, to_y):
-        from_cell = self.format_cell(from_x, from_y)
-        to_cell = self.format_cell(to_x, to_y)
+    def move_fish(self, fish, x, y):
+        cell = list(self.fish.keys())[list(self.fish.values()).index(fish)]
+        new_cell = Cell(cell.x + x, cell.y + y)
 
-        self.fish[to_cell] = self.fish[from_cell]
-        del self.fish[from_cell]
-
-    @staticmethod
-    def format_cell(x, y):
-        return '{},{}'.format(x, y)
+        if new_cell not in self.fish and self.cell_in_bounds(new_cell):
+            self.fish[new_cell] = self.fish.pop(cell)
+            print('{} moved from {} to {}'.format(fish, cell, new_cell))
 
     def _cell_repr(self, x, y):
-        cell = self.format_cell(x, y)
-        if cell in self.fish:
-            return 'P' if isinstance(self.fish[cell], Predator) else 'V'
-        else:
-            return ' '
+        cell = Cell(x, y)
+        return self.fish[cell].get_sign() if cell in self.fish else ' '
 
     def __repr__(self):
         border = '|' + ''.join(['-' for _ in range(self.w)]) + '|'
@@ -79,115 +138,152 @@ class Pool:
         return '\n'.join(result)
 
 
-class Fish:
-    def __init__(self, x, y, endurance, pool: Pool):
-        self.x = x
-        self.y = y
-        self.endurance = endurance
-        self.pool = pool
-        self.turns_to_next_child = self.pool.reproduction_period
+class Observable:
+    def __init__(self):
+        self.listeners = {}
+
+    def add_event_listener(self, event_name, callback):
+        if event_name not in self.listeners:
+            self.listeners[event_name] = []
+        self.listeners[event_name].append(callback)
+
+    def emit_event(self, event_name, data=None):
+        if event_name in self.listeners:
+            for listener in self.listeners[event_name]:
+                listener(data)
+
+    def remove_all_listeners(self):
+        self.listeners.clear()
+
+
+class Fish(Observable):
+    counter = 0
+
+    def __init__(self, endurance, reproduction_period, generation_size):
+        super().__init__()
+        self.max_endurance = endurance
+        self.endurance = self.max_endurance
+        self.reproduction_period = reproduction_period
+        self.generation_size = generation_size
+        self.turns_to_next_child = self.reproduction_period
+
+        self.id = Fish.counter + 1
+        Fish.counter += 1
 
     def turn(self):
         self.turns_to_next_child -= 1
         if self.turns_to_next_child <= 0:
             self.reproduce()
+
         self.move()
+        self.exhaust()
+
+    def exhaust(self):
         self.endurance -= 1
         if self.endurance <= 0:
             self.die()
+            print('{} died by itself'.format(self))
 
     def reproduce(self):
-        self.turns_to_next_child = self.pool.reproduction_period
+        self.turns_to_next_child = self.reproduction_period
+        children = [self.make_child() for _ in range(self.generation_size)]
+        self.emit_event('reproduce', children)
+        print('{} born {} children'.format(self, len(children)))
+
+    def make_child(self):
+        pass
 
     def die(self):
-        self.pool.remove(self.x, self.y)
+        self.emit_event('die')
+        self.remove_all_listeners()
 
     def move(self):
         pass
 
-    def _do_move(self, x, y):
-        self.pool.move_fish(self.x, self.y, x, y)
-        self.x = x
-        self.y = y
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.id)
+
+    def get_sign(self):
+        pass
 
 
 class Predator(Fish):
-    def __init__(self, x, y, pool: Pool):
-        super().__init__(x, y, pool.predator_endurance, pool)
-
-    def reproduce(self):
-        super().reproduce()
-        self.pool.add_predator()
+    def __init__(self, endurance, reproduction_period, pool: Pool):
+        super().__init__(endurance, reproduction_period, 1)
+        self.pool = pool
 
     def move(self):
-        victim = self._closest_victim()
+        predator_cell = list(self.pool.fish.keys())[list(self.pool.fish.values()).index(self)]
+        victim_cells = [k for k, v in self.pool.fish.items() if isinstance(v, Victim)]
 
-        def closer_cell():
-            x = self.x
-            if x < victim.x:
-                x += 1
-            if x > victim.x:
-                x -= 1
+        if victim_cells:
+            target_cell = predator_cell.towards_one_of(victim_cells, 2)
 
-            y = self.y
-            if y < victim.x:
-                y += 1
-            if y > victim.x:
-                y -= 1
+            if target_cell in victim_cells:
+                victim = self.pool.fish[target_cell]
+                self.eat(victim)
+                print('{} eaten {} at {}'.format(self, victim, target_cell))
 
-            return x, y
+            next_move = (target_cell - predator_cell).as_tuple()
+            self.emit_event('move', next_move)
 
-        new_x, new_y = closer_cell()
-        if self.pool.cell_is_free(new_x, new_y):
-            super()._do_move(new_x, new_y)
-        else:
-            cell = self.pool.format_cell(new_x, new_y)
-            if isinstance(self.pool.fish[cell], Victim):
-                # eat
-                self.pool.remove(new_x, new_y)
-                self.endurance = pool.predator_endurance
-                super()._do_move(new_x, new_y)
+    def eat(self, victim):
+        victim.die()
+        self.endurance = self.max_endurance
 
-    def _closest_victim(self):
-        def distance(victim):
-            delta_x = self.x - victim.x
-            delta_y = self.x - victim.x
-            return math.sqrt(delta_x ** 2 + delta_y ** 2)
+    def make_child(self):
+        return Predator(self.max_endurance, self.reproduction_period, self.pool)
 
-        def reducer(closest, victim):
-            return victim if distance(victim) < distance(closest) else closest
-
-        victims = filter(lambda f: isinstance(f, Victim), self.pool.fish.values())
-        return functools.reduce(reducer, victims)
-
-    def __repr__(self):
-        return 'Predator({},{})'.format(self.x, self.y)
+    def get_sign(self):
+        return 'P'
 
 
 class Victim(Fish):
-    def __init__(self, x, y, pool: Pool):
-        super().__init__(x, y, pool.victim_lifespan, pool)
+    def __init__(self, lifespan, reproduction_period, generation_size):
+        super().__init__(lifespan, reproduction_period, generation_size)
+        self.generation_size = generation_size
+        self.move_range = 1
 
-    def reproduce(self):
-        super().reproduce()
-        for i in range(self.pool.victim_generation_size):
-            self.pool.add_victim()
+    def make_child(self):
+        return Victim(self.endurance, self.reproduction_period, self.generation_size)
 
     def move(self):
-        delta_x = random.randrange(3) - 1
-        delta_y = random.randrange(3) - 1
-        x = self.x + delta_x
-        y = self.y + delta_y
+        delta_x = random.randrange(self.move_range * 2 + 1) - 1
+        delta_y = random.randrange(self.move_range * 2 + 1) - 1
+        self.emit_event('move', (delta_x, delta_y))
 
-        in_bounds = 0 <= x < self.pool.w and 0 <= y < self.pool.h
-        if in_bounds and self.pool.cell_is_free(x, y):
-            super()._do_move(x, y)
-
-    def __repr__(self):
-        return 'Victim({},{})'.format(self.x, self.y)
+    def get_sign(self):
+        return 'V'
 
 
-pool = Pool(10, 5, 3, 8, 4, 4, 5, 2)
-for i in range(10):
-    print(pool)
-    pool.turn()
+class Game:
+    def __init__(self, pool: Pool, predators_count, victims_count, predator_endurance, reproduction_period,
+                 victim_lifespan, victim_generation_size):
+        self.pool = pool
+
+        for _ in range(victims_count):
+            victim = Victim(victim_lifespan, reproduction_period, victim_generation_size)
+            self.add(victim)
+
+        for _ in range(predators_count):
+            predator = Predator(predator_endurance, reproduction_period, self.pool)
+            self.add(predator)
+
+    def add(self, fish):
+        if self.pool.add(fish):
+            fish.add_event_listener('die', lambda _: self.pool.remove(fish))
+            fish.add_event_listener('move', lambda move: self.pool.move_fish(fish, *move))
+            fish.add_event_listener('reproduce', lambda children: [self.add(child) for child in children])
+
+    def turn(self):
+        for fish in self.pool.fish.copy().values():  # create a copy because the dictionary may change during iteration
+            if fish in self.pool.fish.values():  # check if fish is still alive (it might be eaten by a predator)
+                fish.turn()
+
+
+first_pool = RectanglePool(10, 5)
+game = Game(first_pool, 1, 4, 4, 5, 10, 3)
+for i in range(20):
+    print('\nturn #{}'.format(i))
+    print(game.pool)
+    game.turn()
