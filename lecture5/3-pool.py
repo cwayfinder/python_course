@@ -207,17 +207,37 @@ class Fish(Observable):
         pass
 
 
+class Victim(Fish):
+    def __init__(self, endurance, reproduction_period, generation_size):
+        super().__init__(endurance, reproduction_period, generation_size)
+        self.generation_size = generation_size
+        self.move_range = 1
+
+    def make_child(self):
+        return Victim(self.endurance, self.reproduction_period, self.generation_size)
+
+    def move(self):
+        delta_x = random.randrange(self.move_range * 2 + 1) - 1
+        delta_y = random.randrange(self.move_range * 2 + 1) - 1
+        self.emit_event('move', (delta_x, delta_y))
+
+    def get_sign(self):
+        return 'V'
+
+
 class Predator(Fish):
     def __init__(self, endurance, reproduction_period, pool: Pool):
         super().__init__(endurance, reproduction_period, 1)
         self.pool = pool
+        self.move_range = 2
+        self.can_eat = (Victim, Hybrid)
 
     def move(self):
         predator_cell = list(self.pool.fish.keys())[list(self.pool.fish.values()).index(self)]
-        victim_cells = [k for k, v in self.pool.fish.items() if isinstance(v, Victim)]
+        victim_cells = [k for k, v in self.pool.fish.items() if isinstance(v, self.can_eat)]
 
         if victim_cells:
-            target_cell = predator_cell.towards_one_of(victim_cells, 2)
+            target_cell = predator_cell.towards_one_of(victim_cells, self.move_range)
 
             if target_cell in victim_cells:
                 victim = self.pool.fish[target_cell]
@@ -238,22 +258,18 @@ class Predator(Fish):
         return 'P'
 
 
-class Victim(Fish):
-    def __init__(self, lifespan, reproduction_period, generation_size):
-        super().__init__(lifespan, reproduction_period, generation_size)
-        self.generation_size = generation_size
-        self.move_range = 1
+class Hybrid(Predator):
+    def __init__(self, endurance, reproduction_period, pool: Pool):
+        super().__init__(endurance, reproduction_period, 1)
+        self.pool = pool
+        self.move_range = 2
+        self.can_eat = (Victim,)
 
     def make_child(self):
-        return Victim(self.endurance, self.reproduction_period, self.generation_size)
-
-    def move(self):
-        delta_x = random.randrange(self.move_range * 2 + 1) - 1
-        delta_y = random.randrange(self.move_range * 2 + 1) - 1
-        self.emit_event('move', (delta_x, delta_y))
+        return Hybrid(self.max_endurance, self.reproduction_period, self.pool)
 
     def get_sign(self):
-        return 'V'
+        return 'H'
 
 
 class Game:
@@ -262,8 +278,12 @@ class Game:
         self.pool = pool
 
         for _ in range(victims_count):
-            victim = Victim(victim_lifespan, reproduction_period, victim_generation_size)
-            self.add(victim)
+            hybrid = Victim(victim_lifespan, reproduction_period, victim_generation_size)
+            self.add(hybrid)
+
+        for _ in range(victims_count):
+            hybrid = Hybrid(victim_lifespan, reproduction_period, self.pool)
+            self.add(hybrid)
 
         for _ in range(predators_count):
             predator = Predator(predator_endurance, reproduction_period, self.pool)
