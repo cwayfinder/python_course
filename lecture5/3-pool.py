@@ -1,6 +1,6 @@
-import random
-import math
 import functools
+import math
+import random
 from abc import ABCMeta, abstractmethod
 
 
@@ -61,34 +61,8 @@ class Cell:
 
 
 class Pool(metaclass=ABCMeta):
-    @property
-    @abstractmethod
-    def fish(self):
-        pass
-
-    @abstractmethod
-    def add(self, fish):
-        pass
-
-    @abstractmethod
-    def remove(self, fish):
-        pass
-
-    @abstractmethod
-    def move_fish(self, fish, x, y):
-        pass
-
-
-class RectanglePool(Pool):
-    def __init__(self, w, h):
-        self.w = w
-        self.h = h
-
-        self._fish = {}
-
-    @property
-    def fish(self):
-        return self._fish
+    def __init__(self):
+        self.fish = {}
 
     def add(self, fish):
         cell = self.random_cell()
@@ -96,17 +70,6 @@ class RectanglePool(Pool):
             self.fish[cell] = fish
             return True
         return False
-
-    def random_cell(self):
-        x = random.randrange(self.w)
-        y = random.randrange(self.h)
-        return Cell(x, y)
-
-    def cell_is_free(self, cell):
-        return cell not in self.fish
-
-    def cell_in_bounds(self, cell):
-        return 0 <= cell.x < self.w and 0 <= cell.y < self.h
 
     def remove(self, fish):
         cell = list(self.fish.keys())[list(self.fish.values()).index(fish)]
@@ -120,12 +83,38 @@ class RectanglePool(Pool):
             self.fish[new_cell] = self.fish.pop(cell)
             print('{} moved from {} to {}'.format(fish, cell, new_cell))
 
+    def cell_is_free(self, cell):
+        return cell not in self.fish
+
+    @abstractmethod
+    def cell_in_bounds(self, cell):
+        pass
+
+    @abstractmethod
+    def random_cell(self):
+        pass
+
     def _cell_repr(self, x, y):
         cell = Cell(x, y)
         return self.fish[cell].get_sign() if cell in self.fish else ' '
 
+
+class RectanglePool(Pool):
+    def __init__(self, w, h):
+        super().__init__()
+        self.w = w
+        self.h = h
+
+    def random_cell(self):
+        x = random.randrange(self.w)
+        y = random.randrange(self.h)
+        return Cell(x, y)
+
+    def cell_in_bounds(self, cell):
+        return 0 <= cell.x < self.w and 0 <= cell.y < self.h
+
     def __repr__(self):
-        border = '|' + ''.join(['-' for _ in range(self.w)]) + '|'
+        border = ' ' + ''.join(['-' for _ in range(self.w)]) + ' '
 
         result = [border]
         for y in range(self.h):
@@ -136,6 +125,60 @@ class RectanglePool(Pool):
         result.append(border)
 
         return '\n'.join(result)
+
+
+class HexagonalPool(Pool):
+    def __init__(self, size):
+        super().__init__()
+        self.size = size
+
+    def random_cell(self):
+        y = random.randrange(self.size)
+        start, end = self.row_bounds(y)
+        x = random.randrange(start, end)
+        return Cell(x, y)
+
+    def cell_in_bounds(self, cell):
+        start, end = self.row_bounds(cell.y)
+        return start <= cell.x < end and 0 <= cell.y < self.size
+
+    def row_bounds(self, y):
+        half = self.size // 2
+        start = abs(half - y)
+        end = (self.size * 2 - 1 - start)
+
+        return start, end
+
+    def __repr__(self):
+        half = self.size // 2
+        horizontal_border = ' ' * (half + 2) + '-' * (self.size - 2) + ' ' * (half + 2)
+
+        result = [horizontal_border]
+        for y in range(self.size):
+            row = []
+            start, end = self.row_bounds(y)
+            for x in range(start, end):
+                row.append(self._cell_repr(x, y))
+            outside = ' ' * start
+            left_border, right_border = self.vertical_borders(y)
+            result.append(outside + left_border + ''.join(row) + right_border + outside)
+        result.append(horizontal_border)
+
+        return '\n'.join(result)
+
+    def vertical_borders(self, y):
+        half = self.size // 2
+        if y < half:
+            left_border = '/'
+            right_border = '\\'
+        elif y > half:
+            left_border = '\\'
+            right_border = '/'
+        else:
+            left_border = '('
+            right_border = ')'
+
+        return left_border, right_border
 
 
 class Observable:
@@ -203,8 +246,9 @@ class Fish(Observable):
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.id)
 
-    def get_sign(self):
-        pass
+    @classmethod
+    def get_sign(cls):
+        return 'X'
 
 
 class Victim(Fish):
@@ -221,7 +265,8 @@ class Victim(Fish):
         delta_y = random.randrange(self.move_range * 2 + 1) - 1
         self.emit_event('move', (delta_x, delta_y))
 
-    def get_sign(self):
+    @classmethod
+    def get_sign(cls):
         return 'V'
 
 
@@ -254,7 +299,8 @@ class Predator(Fish):
     def make_child(self):
         return Predator(self.max_endurance, self.reproduction_period, self.pool)
 
-    def get_sign(self):
+    @classmethod
+    def get_sign(cls):
         return 'P'
 
 
@@ -268,7 +314,8 @@ class Hybrid(Predator):
     def make_child(self):
         return Hybrid(self.max_endurance, self.reproduction_period, self.pool)
 
-    def get_sign(self):
+    @classmethod
+    def get_sign(cls):
         return 'H'
 
 
@@ -301,9 +348,10 @@ class Game:
                 fish.turn()
 
 
-first_pool = RectanglePool(10, 5)
-game = Game(first_pool, 1, 4, 4, 5, 10, 3)
-for i in range(20):
-    print('\nturn #{}'.format(i))
+# first_pool = RectanglePool(10, 5)
+second_pool = HexagonalPool(7)
+game = Game(second_pool, 1, 4, 4, 5, 10, 3)
+for turn in range(20):
+    print('\nturn #{}'.format(turn))
     print(game.pool)
     game.turn()
