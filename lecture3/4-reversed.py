@@ -1,21 +1,24 @@
 import os
-import tempfile
 
 
 def reverse_file(fin, fout):
-    with open(fin, 'rt') as source, open(fout, 'wt') as dest:
-        tmp = tempfile.TemporaryFile(mode='r+t')
+    with open(fin) as source, open(fout, 'w') as dest:
+        source.seek(0, os.SEEK_END)
+        file_size = source.tell()
 
-        file_size = os.path.getsize('lines.txt')
-        for i in range(file_size // 1024, -1, -1):
-            source.seek(i * 1024)
-            data = source.read(1024)
-            tmp.write(data[::-1])
+        line = ''
+        for pos in reversed(range(0, file_size)):
+            source.seek(pos)
+            char = source.read(1)
 
-        tmp.seek(0)
+            if char != '\n':
+                line = char + line
+            else:
+                dest.write(line + '\n')
+                line = ''
 
-        for line in tmp:
-            dest.write(line[::-1])
+            if pos == 0:
+                dest.write(line)
 
 
 reverse_file('lines.txt', 'lines2.txt')
