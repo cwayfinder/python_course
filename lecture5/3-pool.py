@@ -82,12 +82,10 @@ class Pool(metaclass=ABCMeta):
         return cell not in self.creatures
 
     @abstractmethod
-    def cell_in_bounds(self, cell):
-        pass
+    def cell_in_bounds(self, cell): ...
 
     @abstractmethod
-    def random_cell(self):
-        pass
+    def random_cell(self): ...
 
     def _cell_repr(self, x, y):
         cell = Cell(x, y)
@@ -197,24 +195,26 @@ class Observable:
 class Fish(Observable):
     counter = 0
 
-    def __init__(self, endurance, reproduction_period, generation_size):
+    def __init__(self, endurance, gestation, generation_size):
         super().__init__()
         self.max_endurance = endurance
         self.endurance = self.max_endurance
-        self.reproduction_period = reproduction_period
+        self.gestation = gestation
         self.generation_size = generation_size
-        self.turns_to_next_child = self.reproduction_period
+        self.turns_to_next_child = self.gestation
 
         self.id = Fish.counter + 1
         Fish.counter += 1
 
     def turn(self):
-        self.turns_to_next_child -= 1
-        if self.turns_to_next_child <= 0:
-            self.reproduce()
-
+        self.gestate()
         self.move()
         self.exhaust()
+
+    def gestate(self):
+        self.turns_to_next_child -= 1
+        if self.turns_to_next_child <= 0:
+            self.breed()
 
     def exhaust(self):
         self.endurance -= 1
@@ -222,21 +222,21 @@ class Fish(Observable):
             self.die()
             print('{} died by itself'.format(self))
 
-    def reproduce(self):
-        self.turns_to_next_child = self.reproduction_period
+    def breed(self):
+        self.turns_to_next_child = self.gestation
         children = [self.make_child() for _ in range(self.generation_size)]
         self.emit_event('reproduce', children)
         print('{} born {} children'.format(self, len(children)))
 
-    def make_child(self):
-        pass
+    @abstractmethod
+    def make_child(self): ...
 
     def die(self):
         self.emit_event('die')
         self.remove_all_listeners()
 
-    def move(self):
-        pass
+    @abstractmethod
+    def move(self): ...
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.id)
@@ -247,13 +247,13 @@ class Fish(Observable):
 
 
 class Victim(Fish):
-    def __init__(self, endurance, reproduction_period, generation_size):
-        super().__init__(endurance, reproduction_period, generation_size)
+    def __init__(self, endurance, gestation, generation_size):
+        super().__init__(endurance, gestation, generation_size)
         self.generation_size = generation_size
         self.move_range = 1
 
     def make_child(self):
-        return Victim(self.endurance, self.reproduction_period, self.generation_size)
+        return Victim(self.endurance, self.gestation, self.generation_size)
 
     def move(self):
         delta_x = random.randrange(self.move_range * 2 + 1) - 1
@@ -266,8 +266,8 @@ class Victim(Fish):
 
 
 class Predator(Fish):
-    def __init__(self, endurance, reproduction_period, pool: Pool):
-        super().__init__(endurance, reproduction_period, 1)
+    def __init__(self, endurance, gestation, pool: Pool):
+        super().__init__(endurance, gestation, 1)
         self.pool = pool
         self.move_range = 2
         self.can_eat = (Victim, Hybrid)
@@ -292,7 +292,7 @@ class Predator(Fish):
         self.endurance = self.max_endurance
 
     def make_child(self):
-        return Predator(self.max_endurance, self.reproduction_period, self.pool)
+        return Predator(self.max_endurance, self.gestation, self.pool)
 
     @classmethod
     def get_sign(cls):
@@ -300,14 +300,14 @@ class Predator(Fish):
 
 
 class Hybrid(Predator):
-    def __init__(self, endurance, reproduction_period, pool: Pool):
-        super().__init__(endurance, reproduction_period, 1)
+    def __init__(self, endurance, gestation, pool: Pool):
+        super().__init__(endurance, gestation, 1)
         self.pool = pool
         self.move_range = 2
         self.can_eat = (Victim,)
 
     def make_child(self):
-        return Hybrid(self.max_endurance, self.reproduction_period, self.pool)
+        return Hybrid(self.max_endurance, self.gestation, self.pool)
 
     @classmethod
     def get_sign(cls):
