@@ -13,10 +13,7 @@ class Cell:
         return math.hypot(self.x - other.x, self.x - other.x)
 
     def closest(self, others):
-        def reducer(closest, other):
-            return other if self.distance(other) < self.distance(closest) else closest
-
-        return functools.reduce(reducer, others)
+        return min(others, key=lambda other: self.distance(other))
 
     def towards(self, other, limit: int):
         x = self.x
