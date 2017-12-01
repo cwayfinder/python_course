@@ -194,12 +194,12 @@ class Observable:
 class Fish(Observable):
     counter = 0
 
-    def __init__(self, endurance, gestation, generation_size):
+    def __init__(self, endurance, gestation, breed_size):
         super().__init__()
         self.max_endurance = endurance
         self.endurance = self.max_endurance
         self.gestation = gestation
-        self.generation_size = generation_size
+        self.breed_size = breed_size
         self.turns_to_next_child = self.gestation
 
         self.id = Fish.counter + 1
@@ -223,7 +223,7 @@ class Fish(Observable):
 
     def breed(self):
         self.turns_to_next_child = self.gestation
-        children = [self.make_child() for _ in range(self.generation_size)]
+        children = [self.make_child() for _ in range(self.breed_size)]
         self.emit_event('reproduce', children)
         print('{} born {} children'.format(self, len(children)))
 
@@ -246,13 +246,13 @@ class Fish(Observable):
 
 
 class Victim(Fish):
-    def __init__(self, endurance, gestation, generation_size):
-        super().__init__(endurance, gestation, generation_size)
-        self.generation_size = generation_size
+    def __init__(self, endurance, gestation, breed_size):
+        super().__init__(endurance, gestation, breed_size)
+        self.breed_size = breed_size
         self.move_range = 1
 
     def make_child(self):
-        return Victim(self.endurance, self.gestation, self.generation_size)
+        return Victim(self.endurance, self.gestation, self.breed_size)
 
     def move(self):
         delta_x = random.randrange(self.move_range * 2 + 1) - 1
@@ -314,20 +314,20 @@ class Hybrid(Predator):
 
 
 class Game:
-    def __init__(self, pool: Pool, predators_count, victims_count, predator_endurance, reproduction_period,
-                 victim_lifespan, victim_generation_size):
+    def __init__(self, pool: Pool, predators_count, victims_count, predator_ttl, gestation,
+                 victim_ttl, victim_breed_size):
         self.pool = pool
 
         for _ in range(victims_count):
-            hybrid = Victim(victim_lifespan, reproduction_period, victim_generation_size)
-            self.add(hybrid)
+            victim = Victim(victim_ttl, gestation, victim_breed_size)
+            self.add(victim)
 
         for _ in range(victims_count):
-            hybrid = Hybrid(victim_lifespan, reproduction_period, self.pool)
+            hybrid = Hybrid(victim_ttl, gestation, self.pool)
             self.add(hybrid)
 
         for _ in range(predators_count):
-            predator = Predator(predator_endurance, reproduction_period, self.pool)
+            predator = Predator(predator_ttl, gestation, self.pool)
             self.add(predator)
 
     def add(self, creature):
@@ -337,8 +337,9 @@ class Game:
             creature.add_event_listener('reproduce', lambda children: [self.add(child) for child in children])
 
     def turn(self):
-        for creature in self.pool.creatures.copy().values():  # create a copy because the dictionary may change during iteration
-            if creature in self.pool.creatures.values():  # check if creature is still alive (it might be eaten by a predator)
+        for creature in self.pool.creatures.copy().values():  # create a copy (the dictionary may change during the loop)
+            # check if creature is still alive (it might be eaten by a predator on this turn)
+            if creature in self.pool.creatures.values():
                 creature.turn()
 
 
