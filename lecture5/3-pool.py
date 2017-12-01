@@ -10,9 +10,7 @@ class Cell:
         self.x = x
 
     def distance(self, other):
-        delta_x = self.x - other.x
-        delta_y = self.x - other.x
-        return math.sqrt(delta_x ** 2 + delta_y ** 2)
+        return math.hypot(self.x - other.x, self.x - other.x)
 
     def closest(self, others):
         def reducer(closest, other):
