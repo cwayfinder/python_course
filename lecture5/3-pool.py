@@ -60,29 +60,29 @@ class Cell:
 
 class Pool(metaclass=ABCMeta):
     def __init__(self):
-        self.fish = {}
+        self.creatures = {}
 
-    def add(self, fish):
+    def add(self, creature):
         cell = self.random_cell()
         if self.cell_is_free(cell):
-            self.fish[cell] = fish
+            self.creatures[cell] = creature
             return True
         return False
 
-    def remove(self, fish):
-        cell = list(self.fish.keys())[list(self.fish.values()).index(fish)]
-        self.fish.pop(cell)
+    def remove(self, creature):
+        cell = list(self.creatures.keys())[list(self.creatures.values()).index(creature)]
+        self.creatures.pop(cell)
 
-    def move_fish(self, fish, x, y):
-        cell = list(self.fish.keys())[list(self.fish.values()).index(fish)]
-        new_cell = Cell(cell.x + x, cell.y + y)
+    def move_creature(self, creature, delta_x, delta_y):
+        cell = list(self.creatures.keys())[list(self.creatures.values()).index(creature)]
+        new_cell = Cell(cell.x + delta_x, cell.y + delta_y)
 
-        if new_cell not in self.fish and self.cell_in_bounds(new_cell):
-            self.fish[new_cell] = self.fish.pop(cell)
-            print('{} moved from {} to {}'.format(fish, cell, new_cell))
+        if new_cell not in self.creatures and self.cell_in_bounds(new_cell):
+            self.creatures[new_cell] = self.creatures.pop(cell)
+            print('{} moved from {} to {}'.format(creature, cell, new_cell))
 
     def cell_is_free(self, cell):
-        return cell not in self.fish
+        return cell not in self.creatures
 
     @abstractmethod
     def cell_in_bounds(self, cell):
@@ -94,7 +94,7 @@ class Pool(metaclass=ABCMeta):
 
     def _cell_repr(self, x, y):
         cell = Cell(x, y)
-        return self.fish[cell].get_sign() if cell in self.fish else ' '
+        return self.creatures[cell].get_sign() if cell in self.creatures else ' '
 
 
 class RectanglePool(Pool):
@@ -276,14 +276,14 @@ class Predator(Fish):
         self.can_eat = (Victim, Hybrid)
 
     def move(self):
-        predator_cell = list(self.pool.fish.keys())[list(self.pool.fish.values()).index(self)]
-        victim_cells = [k for k, v in self.pool.fish.items() if isinstance(v, self.can_eat)]
+        predator_cell = list(self.pool.creatures.keys())[list(self.pool.creatures.values()).index(self)]
+        victim_cells = [k for k, v in self.pool.creatures.items() if isinstance(v, self.can_eat)]
 
         if victim_cells:
             target_cell = predator_cell.towards_one_of(victim_cells, self.move_range)
 
             if target_cell in victim_cells:
-                victim = self.pool.fish[target_cell]
+                victim = self.pool.creatures[target_cell]
                 self.eat(victim)
                 print('{} eaten {} at {}'.format(self, victim, target_cell))
 
@@ -334,16 +334,16 @@ class Game:
             predator = Predator(predator_endurance, reproduction_period, self.pool)
             self.add(predator)
 
-    def add(self, fish):
-        if self.pool.add(fish):
-            fish.add_event_listener('die', lambda _: self.pool.remove(fish))
-            fish.add_event_listener('move', lambda move: self.pool.move_fish(fish, *move))
-            fish.add_event_listener('reproduce', lambda children: [self.add(child) for child in children])
+    def add(self, creature):
+        if self.pool.add(creature):
+            creature.add_event_listener('die', lambda _: self.pool.remove(creature))
+            creature.add_event_listener('move', lambda move: self.pool.move_creature(creature, *move))
+            creature.add_event_listener('reproduce', lambda children: [self.add(child) for child in children])
 
     def turn(self):
-        for fish in self.pool.fish.copy().values():  # create a copy because the dictionary may change during iteration
-            if fish in self.pool.fish.values():  # check if fish is still alive (it might be eaten by a predator)
-                fish.turn()
+        for creature in self.pool.creatures.copy().values():  # create a copy because the dictionary may change during iteration
+            if creature in self.pool.creatures.values():  # check if creature is still alive (it might be eaten by a predator)
+                creature.turn()
 
 
 # first_pool = RectanglePool(10, 5)
