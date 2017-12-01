@@ -1,4 +1,3 @@
-import functools
 import math
 import random
 from abc import ABCMeta, abstractmethod
