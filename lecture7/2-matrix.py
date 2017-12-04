@@ -2,8 +2,13 @@ class Matrix:
     def __init__(self, data):
         self._data = data
 
-    def item(self, row_index, col_index):
+    def __getitem__(self, index):
+        row_index, col_index = index
         return self._data[row_index][col_index]
+
+    def __setitem__(self, index, value):
+        row_index, col_index = index
+        self._data[row_index][col_index] = value
 
     def row(self, index):
         return self._data[index]
@@ -27,7 +32,7 @@ class Matrix:
         if other.width() == self.width() and other.height() == self.height():
             result = []
             for row in range(self.height()):
-                result.append([self.item(row, col) + other.item(row, col) for col in range(self.width())])
+                result.append([self[row, col] + other[row, col] for col in range(self.width())])
             return Matrix(result)
 
         return ValueError
@@ -39,7 +44,7 @@ class Matrix:
         if other.width() == self.width() and other.height() == self.height():
             result = []
             for row in range(self.height()):
-                result.append([self.item(row, col) - other.item(row, col) for col in range(self.width())])
+                result.append([self[row, col] - other[row, col] for col in range(self.width())])
             return Matrix(result)
 
         return ValueError
@@ -49,5 +54,10 @@ m1 = Matrix([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
 m2 = Matrix([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
 print(m1, '\n')
 print(m2, '\n')
+
+print(m1[1, 1])
+m1[1,1] = 50
+print(m1[1, 1], '\n')
+
 print(m1 + m2, '\n')
 print(m1 - m2, '\n')
