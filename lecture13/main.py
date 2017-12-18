@@ -1,6 +1,6 @@
 import datetime
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect
 
 app = Flask(__name__)
 
@@ -24,9 +24,11 @@ def add():
         task = request.form.get('task', '')
         print(date, task)
         try:
-            if not date or task:
+            if not date or not task:
                 raise ValueError
-            date = datetime.datetime.strptime(date, '%s.%s.%s')
+            date = datetime.datetime.strptime(date, '%d.%m.%y')
+            # save to DB
+            return redirect('/')
         except ValueError:
             message = 'Incorrect input'
     return render_template('add.html', date=date, task=task, message=message)
