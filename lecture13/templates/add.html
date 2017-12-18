@@ -1,0 +1,11 @@
+{% extends "index.html" %}
+{% block content %}
+<p>{{message}}</p>
+<form action="" method="post">
+    <p><input type="text" name="date" value="{{date}}" placeholder="Date"></p>
+    <p><input type="text" name="task" value="{{task}}" placeholder="Task"></p>
+    <p><input type="submit" value="Ok"></p>
+</form>
+{% endblock %}
+
+{% include 'footer.html' %}
