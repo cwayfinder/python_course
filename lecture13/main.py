@@ -1,6 +1,7 @@
 import datetime
 
 from flask import Flask, render_template, request, redirect
+import sqlite3
 
 app = Flask(__name__)
 
@@ -27,7 +28,14 @@ def add():
             if not date or not task:
                 raise ValueError
             date = datetime.datetime.strptime(date, '%d.%m.%y')
-            # save to DB
+
+            db = sqlite3.connect('todo.db')
+            cursor = db.cursor()
+            cursor.execute('insert into tasks (date, task) values (?, ?)', (date, task))
+            db.commit()
+            cursor.close()
+            db.close()
+
             return redirect('/')
         except ValueError:
             message = 'Incorrect input'
